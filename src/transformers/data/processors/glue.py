@@ -17,6 +17,7 @@
 
 import logging
 import os
+import json
 
 from ...file_utils import is_tf_available
 from .utils import DataProcessor, InputExample, InputFeatures
@@ -90,7 +91,7 @@ def glue_convert_examples_to_features(
         if ex_index % 10000 == 0:
             logger.info("Writing example %d/%d" % (ex_index, len_examples))
 
-        inputs = tokenizer.encode_plus(example.text_a, example.text_b, add_special_tokens=True, max_length=max_length,)
+        inputs = tokenizer.encode_plus(example.text_a, example.text_b, add_special_tokens=True, max_length=max_length,return_token_type_ids=True)
         input_ids, token_type_ids = inputs["input_ids"], inputs["token_type_ids"]
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
@@ -197,13 +198,13 @@ class MrpcProcessor(DataProcessor):
         for (i, line) in enumerate(lines):
             if i == 0:
                 continue
-            guid = "%s-%s" % (set_type, line[0])
-            text_a = line[0]
-            text_b = line[1]
-            label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            g = "%s-%s" % (set_type, i)
+            a = line[3]
+            b = line[4]
+            label = line[0]
+            examples.append(InputExample(guid=g, text_a=a, text_b=b, label=label))
         return examples
-
+    
 class MnliProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
 
@@ -234,12 +235,13 @@ class MnliProcessor(DataProcessor):
         for (i, line) in enumerate(lines):
             if i == 0:
                 continue
-            guid = "%s-%s" % (set_type, line[0])
-            text_a = line[8]
-            text_b = line[9]
+            g = "%s-%s" % (set_type, line[0])
+            a = line[8]
+            b = line[9]
             label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(InputExample(guid=g, text_a=a, text_b=b, label=label))
         return examples
+
 
 
 class MnliMismatchedProcessor(MnliProcessor):
@@ -514,29 +516,29 @@ class WnliProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
-class BoolQProcessor(DataProcessor):
+class BoolqProcessor(DataProcessor):
     """Processor for the WNLI data set (GLUE version)."""
 
     def get_example_from_tensor_dict(self, tensor_dict):
         """See base class."""
         return InputExample(
             tensor_dict["idx"].numpy(),
-            tensor_dict["passage"].numpy().decode("utf-8"),
             tensor_dict["question"].numpy().decode("utf-8"),
+            tensor_dict["passage"].numpy().decode("utf-8"),
             str(tensor_dict["label"].numpy()),
         )
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.jsonl")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "val.jsonl")), "dev")
 
     def get_labels(self):
         """See base class."""
-        return [TRUE, FALSE]
+        return [False, True]
 
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
@@ -544,13 +546,16 @@ class BoolQProcessor(DataProcessor):
         for (i, line) in enumerate(lines):
             if i == 0:
                 continue
+            data = json.loads(line[0])
             guid = "%s-%s" % (set_type, line[0])
-            text_a = line[1]
-            text_b = line[2]
-            label = line[-1]
+            text_a = data["question"]
+            text_b = data["passage"]
+            label = data["label"]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
-    
+    ##please
+
+
 glue_tasks_num_labels = {
     "cola": 2,
     "mnli": 3,
@@ -575,7 +580,7 @@ glue_processors = {
     "qnli": QnliProcessor,
     "rte": RteProcessor,
     "wnli": WnliProcessor,
-    "boolq": BoolQProcessor,
+    "boolq": BoolqProcessor,
 }
 
 glue_output_modes = {
@@ -588,6 +593,5 @@ glue_output_modes = {
     "qqp": "classification",
     "qnli": "classification",
     "rte": "classification",
-    "wnli": "classification",
-    "boolq": "classification"
+    "boolq": "classification",
 }
